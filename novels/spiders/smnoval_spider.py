@@ -58,51 +58,25 @@ class SMNovelSpider(CrawlSpider):
         page_source = self.driver.page_source
         bs_obj = BeautifulSoup(page_source, 'lxml')
         #log.msg("bs_obj: %s" % bs_obj, level=log.DEBUG)
-        tables = bs_obj.find_all('table', class_='board-list tiz')
-        log.msg('Tables length %d: %s' % (len(tables), tables), level=log.DEBUG)
-        for table in tables:
-            noval_chaps = table.find_all('tr', class_=False)
-            for noval_chap in noval_chaps:
-                log.msg('noval_chap: %s' % noval_chap, level=log.DEBUG)
-                title = ''
-                href = ''
-                td_9 = noval_chap.find('td', class_='title_9')
-                log.msg('td_9: %s' % td_9, level=log.DEBUG)
-                if td_9:
-                    title = td_9.a.get_text().encode('utf-8', 'ignore')
-                    href = td_9.a['href']
-                    log.msg('Title: %s' % title, level=log.DEBUG)
-                    item = NovelItem()
-                    item['title'] = title
-                    root_url = 'http://www.newsmth.net'
-                    if href != '':
-                        content = self.parse_content(root_url + href)
-                        item['content'] = content
-                        log.msg('Content: %s' % content, level=log.DEBUG)
-                        yield item
-
-                td_10s = noval_chap.find_all('td', class_='title_10')
-                for td_10 in td_10s:
-                    log.msg('td_10: %s' % td_10, level=log.DEBUG)
-                    try:
-                        td_10_attr = td_10.a
-                        if not td_10_attr:
-                            continue
-                        current_page_url = td_10.a['href']
-                        if current_page_url != '':
-                            log.msg('Current url: %s' % current_page_url)
-                            m = re.match(r'(?P<base_url>.+p=)(?P<page_num>\d+)#a0$', current_page_url)
-                            if m:
-                                next_page = int(m.group('page_num')) + 1
-                                base_url = m.group('base_url')
-                                next_url = "%s%d" % (base_url, next_page)
-                                log.msg('Next url: %s' % next_url, level=log.DEBUG)
-                                yield Request(root_url + next_url, callback=self.parse)
-                    except AttributeError as e:
-                        log.msg('Ignore td class has no href', level=log.INFO)
-
-
-
-
-
-
+        table = bs_obj.find('table', class_='board-list tiz')
+        log.msg('Table: %s' % table, level=log.DEBUG)
+        noval_chaps = table.find_all('tr', class_=False)
+        for noval_chap in noval_chaps:
+            log.msg('noval_chap: %s' % noval_chap, level=log.DEBUG)
+            title = ''
+            href = ''
+            td_9 = noval_chap.find('td', class_='title_9')
+            log.msg('td_9: %s' % td_9, level=log.DEBUG)
+            if td_9:
+                title = td_9.a.get_text().encode('utf-8', 'ignore')
+                href = td_9.a['href']
+                log.msg('Title: %s' % title, level=log.DEBUG)
+                item = NovelItem()
+                item['title'] = title
+                root_url = 'http://www.newsmth.net'
+                if href != '':
+                    content = self.parse_content(root_url + href)
+                    item['content'] = content
+                    log.msg('Content: %s' % content, level=log.DEBUG)
+                    yield item
+        yield Request(response.url, callback=self.parse)
