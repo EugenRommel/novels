@@ -27,7 +27,7 @@ class SMNovelSpider(CrawlSpider):
         elif self.platform == 'linux':
             self.driver = webdriver.PhantomJS()
 
-        self.driver.set_page_load_timeout(40)
+        self.driver.set_page_load_timeout(120)
         dispatcher.connect(self.spider_closed, signals.spider_closed)
 
     def spider_closed(self, spider):
@@ -36,13 +36,28 @@ class SMNovelSpider(CrawlSpider):
     def parse_content(self, url):
         try:
             self.driver.get(url)
-            element = WebDriverWait(self.driver, 30).until(EC.presence_of_all_elements_located((By.TAG_NAME, 'table')))
+            element = WebDriverWait(self.driver, 60).until(EC.presence_of_all_elements_located((By.TAG_NAME, 'table')))
             log.msg('element:%s' % element, level=log.DEBUG)
         except Exception as e:
             log.msg('Wait failed due to exception: %s' % e, level=log.ERROR)
         page_source = self.driver.page_source
         bs_obj = BeautifulSoup(page_source, "lxml")
-        return bs_obj.find('td', class_='a-content').p.get_text().encode('utf-8', 'ignore')
+        log.msg('bs_obj: %s' % bs_obj, level=log.DEBUG)
+        contents = bs_obj.find_all('td', class_='a-content')
+        contents = [content.p.get_text().encode('utf-8', 'ignore') for content in contents]
+        pagination = bs_obj.find('ul', class_='pagination')
+        log.msg('pagination: %s' % pagination, level=log.DEBUG)
+        page_pre = pagination.find('li', class_='page-pre')
+        art_count = page_pre.i.get_text()
+        log.msg('Art count: %s' % art_count, level=log.DEBUG)
+        next_requests = []
+        if not re.match(r'\?p=\d+$', url):
+            for i in range(2, int(art_count) / 10 + 2):
+                next_url = '%s?p=%d' % (url, i)
+                log.msg('Next URL: %s' % next_url, level=log.DEBUG)
+                next_requests.append(Request(next_url, callback=self.parse))
+        log.msg('art_count: %s' % art_count, level=log.DEBUG)
+        return ('\n'.join(contents), next_requests)
 
     def parse(self, response):
         self.driver.get(response.url)
@@ -75,8 +90,11 @@ class SMNovelSpider(CrawlSpider):
                 item['title'] = title
                 root_url = 'http://www.newsmth.net'
                 if href != '':
-                    content = self.parse_content(root_url + href)
+                    content, requests = self.parse_content(root_url + href)
                     item['content'] = content
                     log.msg('Content: %s' % content, level=log.DEBUG)
                     yield item
-        yield Request(response.url, callback=self.parse)
+
+                    for request in requests:
+                        yield request
+
